@@ -1,0 +1,7 @@
+#######################################
+# Syntax Coloring Map ST7796_t3_PrintScreen
+#######################################
+
+SaveBMP24	KEYWORD2
+DrawBMP24	KEYWORD2
+ST7796_t3_PS_READ_SPEED	LITERAL1
