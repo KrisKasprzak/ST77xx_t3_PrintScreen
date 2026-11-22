@@ -78,7 +78,22 @@ Display wiring is the same as for normal ST7735_t3 use. For **hardware read mode
 
 **DC pin note:** on Teensy 4.x, ST7735_t3 drives DC as a hardware SPI chip-select when it is on pin 10, 36 or 37. Hardware read mode needs DC on a normal GPIO pin. This doesn't apply in frame buffer mode.
 
-**MISO note:** on some display modules the touch controller doesn't release MISO, which corrupts the read. If captures come back as noise, check what else is connected to MISO, or use frame buffer mode.
+### MISO tri-state issue
+
+Hardware read only works if everything else on the bus lets go of MISO when it isn't selected. With its CS pin high, an SPI device should put its MISO output into a high-impedance (tri-state) mode. Some chips and display modules don't. They keep driving MISO high or low even when deselected. The usual offender is the touch controller on a display module, and sometimes the display controller itself. When that happens, two devices drive MISO at once:
+
+- **Screen captures come back as noise**, or as solid black or white.
+- **The SD card stops working** (`SaveBMP24` / `DrawBMP24` return `false`) once the display's MISO is connected. This happens because the display is still driving MISO while the SD card is trying to answer.
+
+**How to check:** deselect every SPI device (all CS pins high) and measure MISO. A properly tri-stated bus with two 10 kΩ resistors on MISO (one to 3.3 V, one to GND) sits at about half the supply. If it reads near 3.3 V or near GND, something isn't releasing the line. Unplug devices one at a time to find which one.
+
+**Fixes:**
+
+- Put a **tri-state buffer** between the misbehaving device's MISO and the Teensy MISO, enabled by that device's CS pin. For example, a single-gate 74LVC1G125: its active-low enable goes to the device's CS, so the buffer only drives MISO while that device is selected.
+- Add **pullup resistors** (about 10 kΩ) on every SPI chip-select pin, so unconfigured devices stay deselected while the Teensy starts up.
+- If you can't change the hardware, don't connect the display's MISO. Use **frame buffer mode** instead, which doesn't read from the display at all.
+
+Paul Stoffregen explains the problem and the fixes in [Better SPI Bus Design in 3 Steps](https://www.pjrc.com/better-spi-bus-design-in-3-steps/) (PJRC).
 
 **ST7789 modules:** many small ST7789 boards (for example the 240 × 240 boards with no CS pin) don't bring out SDO. Hardware read needs SDO and a CS pin, so use frame buffer mode on those boards.
 
