@@ -89,7 +89,7 @@ Hardware read only works if everything else on the bus lets go of MISO when it i
 
 **Fixes:**
 
-- Put a **tri-state buffer** between the misbehaving device's MISO and the Teensy MISO, enabled by that device's CS pin. For example, a single-gate 74LVC1G125: its active-low enable goes to the device's CS, so the buffer only drives MISO while that device is selected.
+- Put a **tri-state buffer** between the misbehaving device's MISO and the Teensy MISO, enabled by that device's CS pin. The PJRC article uses a single-gate 74AHC1G125: its active-low enable goes to the device's CS, so the buffer only drives MISO while that device is selected.
 - Add **pullup resistors** (about 10 kΩ) on every SPI chip-select pin, so unconfigured devices stay deselected while the Teensy starts up.
 - If you can't change the hardware, don't connect the display's MISO. Use **frame buffer mode** instead, which doesn't read from the display at all.
 
