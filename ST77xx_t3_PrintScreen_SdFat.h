@@ -23,16 +23,18 @@ and make millions of dollars, I'm happy for you!
 
 */
 
-#ifndef ST7796_t3_PRINTSCREEN_SDFAT_H
-#define ST7796_t3_PRINTSCREEN_SDFAT_H
+#ifndef ST77xx_t3_PRINTSCREEN_SDFAT_H
+#define ST77xx_t3_PRINTSCREEN_SDFAT_H
 
 #include <Arduino.h>
 #include <SPI.h>
+#include <ST7735_t3.h>
+#include <ST7789_t3.h>
 #include <ST7796_t3.h>
 
 #include <SdFat.h>
 
-#include "ST7796_t3_PrintScreen_Common.h"
+#include "ST77xx_t3_PrintScreen_Common.h"
 
 #define PS_FILE_T            SdFile
 #define PS_BEGIN(cs)         SdFat sd; sd.begin(cs, SD_SCK_MHZ(20))
@@ -43,28 +45,14 @@ and make millions of dollars, I'm happy for you!
 #define PS_SEEK(f, p)        f.seekSet(p)
 
 /*
-code to capture the screen and save it to a 24 bit BMP file
-
-you will need to pass in:
-1. your display object (ST7796_t3)
-2. the TFT chip select pin
-3. the TFT DC pin
-4. the SD chip select pin
-5. filename
-6. optional SPI bus the display is on (default SPI)
-
-If the display is in frame buffer mode (Display.useFrameBuffer(true)) the frame
-buffer is saved. Otherwise the pixels are read back from the ST7796 over MISO
-(see ST7796_t3_PrintScreen_Common.h for the wiring requirements).
-
-Note: ST7735_t3::readPixel() only reads the frame buffer, that is why this
-library does not call it when no frame buffer is in use.
+shared save routine, the public SaveBMP24 overloads below pick the read format
+for the display type (do not call this directly)
 */
+bool inline ST77xx_t3_PS_SaveBMP24(ST7735_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
+                                   const char *FileName, SPIClass &spi,
+                                   uint8_t readFormat, uint8_t colmod) {
 
-bool inline SaveBMP24(ST7796_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
-                      const char *FileName, SPIClass &spi = SPI) {
-
-	static uint8_t rowData[ST7796_t3_PS_MAX_WIDTH * 3 + 3];	// +3 for row padding (stays 0)
+	static uint8_t rowData[ST77xx_t3_PS_MAX_WIDTH * 3 + 3];	// +3 for row padding (stays 0)
 	uint8_t  hdr[54];
 	PS_FILE_T dataFile;
 	int16_t  ww = d->width();
@@ -72,7 +60,7 @@ bool inline SaveBMP24(ST7796_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
 	uint32_t rowSize = (ww * 3 + 3) & ~3;
 	bool     useFB = (d->getFrameBuffer() != NULL);
 
-	if (ww > ST7796_t3_PS_MAX_WIDTH) {
+	if (ww > ST77xx_t3_PS_MAX_WIDTH) {
 		return false;
 	}
 
@@ -86,7 +74,7 @@ bool inline SaveBMP24(ST7796_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
 		return false;
 	}
 
-	ST7796_t3_PS_BuildHeader(hdr, ww, hh);
+	ST77xx_t3_PS_BuildHeader(hdr, ww, hh);
 	dataFile.write(hdr, sizeof(hdr));
 
 	// BMP is stored bottom row first
@@ -94,10 +82,10 @@ bool inline SaveBMP24(ST7796_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
 	// CS is released before the SD card is touched (they usually share the bus)
 	for (int16_t y = hh - 1; y >= 0; y--) {
 		if (useFB) {
-			ST7796_t3_PS_ReadRowFB(d, y, ww, rowData);
+			ST77xx_t3_PS_ReadRowFB(d, y, ww, rowData);
 		}
 		else {
-			ST7796_t3_PS_ReadRowHW(spi, tftCS, tftDC, y, ww, rowData);
+			ST77xx_t3_PS_ReadRowHW(d, spi, tftCS, tftDC, readFormat, colmod, y, ww, rowData);
 		}
 		dataFile.write(rowData, rowSize);
 	}
@@ -107,13 +95,59 @@ bool inline SaveBMP24(ST7796_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
 	return true;
 }
 
-// convenience version for frame buffer users (no TFT pins needed)
-bool inline SaveBMP24(ST7796_t3 *d, int sdCS, const char *FileName) {
+/*
+code to capture the screen and save it to a 24 bit BMP file
+
+you will need to pass in:
+1. your display object (ST7735_t3, ST7789_t3 or ST7796_t3)
+2. the TFT chip select pin
+3. the TFT DC pin
+4. the SD chip select pin
+5. filename
+6. optional SPI bus the display is on (default SPI)
+
+If the display is in frame buffer mode (Display.useFrameBuffer(true)) the frame
+buffer is saved. Otherwise the pixels are read back from the display over MISO
+(see ST77xx_t3_PrintScreen_Common.h for the wiring requirements).
+
+The overload is chosen from the type of the display pointer, which tells the
+library how that controller sends pixels back. Pass &Display where Display is
+declared as the real display class (not a base class ST7735_t3 pointer to an
+ST7789_t3 / ST7796_t3 object).
+
+Note: ST7735_t3::readPixel() only reads the frame buffer, that is why this
+library does not call it when no frame buffer is in use.
+*/
+
+// ST7796: reads come back as 16 bit RGB565
+bool inline SaveBMP24(ST7796_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
+                      const char *FileName, SPIClass &spi = SPI) {
+	return ST77xx_t3_PS_SaveBMP24(d, tftCS, tftDC, sdCS, FileName, spi,
+	                              ST77xx_t3_PS_READ_565, 0);
+}
+
+// ST7789: reads come back as 18 bit RGB666
+bool inline SaveBMP24(ST7789_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
+                      const char *FileName, SPIClass &spi = SPI) {
+	return ST77xx_t3_PS_SaveBMP24(d, tftCS, tftDC, sdCS, FileName, spi,
+	                              ST77xx_t3_PS_READ_666, ST77xx_t3_PS_COLMOD_ST7789);
+}
+
+// ST7735: reads come back as 18 bit RGB666
+bool inline SaveBMP24(ST7735_t3 *d, uint8_t tftCS, uint8_t tftDC, int sdCS,
+                      const char *FileName, SPIClass &spi = SPI) {
+	return ST77xx_t3_PS_SaveBMP24(d, tftCS, tftDC, sdCS, FileName, spi,
+	                              ST77xx_t3_PS_READ_666, ST77xx_t3_PS_COLMOD_ST7735);
+}
+
+// convenience version for frame buffer users (no TFT pins needed), any of the 3 displays
+bool inline SaveBMP24(ST7735_t3 *d, int sdCS, const char *FileName) {
 	if (d->getFrameBuffer() == NULL) {
 		Serial.println("SaveBMP24: no frame buffer, call SaveBMP24(&Display, TFT_CS, TFT_DC, SD_CS, name)");
 		return false;
 	}
-	return SaveBMP24(d, 0, 0, sdCS, FileName);
+	// read format is not used in frame buffer mode
+	return ST77xx_t3_PS_SaveBMP24(d, 0, 0, sdCS, FileName, SPI, ST77xx_t3_PS_READ_565, 0);
 }
 
 
@@ -123,14 +157,14 @@ code adapted from Teensy forum user: socalpinplayer
 code has been combined in to a single inline function call
 
 you will need to pass in:
-1. your display object (ST7796_t3)
+1. your display object (ST7735_t3, ST7789_t3 or ST7796_t3)
 2. chip select pin
 3. filename
 4. and optional x and y for image location
 
 */
 
-bool inline DrawBMP24(ST7796_t3 *d, int cs, const char *FileName, uint16_t x = 0, uint16_t y = 0) {
+bool inline DrawBMP24(ST7735_t3 *d, int cs, const char *FileName, uint16_t x = 0, uint16_t y = 0) {
 
 	PS_FILE_T bmpFile;
 	uint8_t  hdr[54];
@@ -142,7 +176,7 @@ bool inline DrawBMP24(ST7796_t3 *d, int cs, const char *FileName, uint16_t x = 0
 	uint8_t  buffidx = sizeof(sdbuffer);
 	bool     flip = true;					// BMP is stored bottom-to-top
 	uint32_t pos;
-	static uint16_t awColors[ST7796_t3_PS_MAX_WIDTH];	// one row (480 in landscape)
+	static uint16_t awColors[ST77xx_t3_PS_MAX_WIDTH];	// one row (480 in landscape)
 
 	if ((x >= d->width()) || (y >= d->height())) {
 		return false;

@@ -1,6 +1,6 @@
 #include <ST7735_t3.h>
 #include <ST7796_t3.h>
-#include <ST7796_t3_PrintScreen_SdFat.h>
+#include <ST77xx_t3_PrintScreen_SdFat.h>
 
 // display SDO/MISO must be wired to the Teensy MISO (pin 12) for hardware read-back
 // TFT_DC must be a plain GPIO (on Teensy 4.x not 10, 36 or 37)
@@ -31,14 +31,14 @@ void setup() {
   Display.fillRect(330, 20, 60, 60, ST7735_BLUE);
 
   Serial.print("Saving file...");
-  if (SaveBMP24(&Display, TFT_CS, TFT_DC, SD_CS, "ExampleSdFat.BMP")) Serial.println("file saved.");
+  if (SaveBMP24(&Display, TFT_CS, TFT_DC, SD_CS, "ST7796.BMP")) Serial.println("file saved.");
   else Serial.println("save FAILED.");
 
   delay(1000);
   Display.fillScreen(ST7735_BLACK);
 
   Serial.print("Drawing BMP file...");
-  if (DrawBMP24(&Display, SD_CS, "ExampleSdFat.BMP")) Serial.println("drawing complete.");
+  if (DrawBMP24(&Display, SD_CS, "ST7796.BMP")) Serial.println("drawing complete.");
   else Serial.println("draw FAILED.");
 }
 
